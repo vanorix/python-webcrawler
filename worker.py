@@ -74,6 +74,9 @@ def spider(url, word, maxPages):
             # Add the pages that we visited to the end of our collection
             # of pages to visit:
             pagesToVisit = pagesToVisit + links
+            file = open('savedSearches.txt', 'a')
+            file.write('Se encontro ' + word + ' en ' + url)
+            file.close()
             print(" **Success!** ")
             return pagesToVisit
     except:
