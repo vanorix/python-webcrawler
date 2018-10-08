@@ -1,6 +1,7 @@
 from html.parser import HTMLParser  
 from urllib.request import urlopen  
 from urllib import parse
+import threading
 import xmlrpc.client
 import sys
 
@@ -40,18 +41,18 @@ class LinkParser(HTMLParser):
         # Make sure that we are looking at HTML and not other things that
         # are floating around on the internet (such as
         # JavaScript files, CSS, or .PDFs for example)
-        print(response)
-        print(response.getheader('Content-Type'))
+        # print(response)
+        # print(response.getheader('Content-Type'))
         if response.getheader('Content-Type') == 'text/html; charset=UTF-8' or response.getheader('Content-Type') == 'text/html':
             # Note that feed() handles Strings well, but not bytes
             # (A change from Python 2.x to Python 3.x)
             htmlBytes = response.read()
-            print(response.getheaders())
+            # print(response.getheaders())
             htmlString = htmlBytes.decode("utf-8")
             # print(htmlString)
             # print(htmlString)
             self.feed(htmlString)
-            print(self.links)
+            # print(self.links)
             return htmlString, self.links
         else:
             return "",[]
@@ -60,44 +61,47 @@ class LinkParser(HTMLParser):
 # and the number of pages to search through before giving up
 def spider(url, word, maxPages):  
     pagesToVisit = [url]
-    numberVisited = 0
     foundWord = False
-    # The main loop. Create a LinkParser and get all the links on the page.
-    # Also search the page for the word or string
-    # In our getLinks function we return the web page
-    # (this is useful for searching for the word)
-    # and we return a set of links from that web page
-    # (this is useful for where to go next)
-    while numberVisited < maxPages and pagesToVisit != []:
-        numberVisited = numberVisited + 1
-        # Start from the beginning of our collection of pages to visit:
-        url = pagesToVisit[0]
-        pagesToVisit = pagesToVisit[1:]
-        try:
-            print(numberVisited, "Visiting:", url)
-            parser = LinkParser()
-            data, links = parser.getLinks(url)
-            if data.find(word) > -1:
-                foundWord = True
-                # Add the pages that we visited to the end of our collection
-                # of pages to visit:
-                pagesToVisit = pagesToVisit + links
-                print(" **Success!** ")
-        except:
-            print(" **Failed!** ", sys.exc_info())
-    if foundWord:
-        print("The word", word, "was found at", url)
-    else:
-        print("Word never found")
+
+    # Start from the beginning of our collection of pages to visit:
+    url = pagesToVisit[0]
+    pagesToVisit = pagesToVisit[1:]
+    try:
+        parser = LinkParser()
+        data, links = parser.getLinks(url)
+        if data.find(word) > -1:
+            foundWord = True
+            # Add the pages that we visited to the end of our collection
+            # of pages to visit:
+            pagesToVisit = pagesToVisit + links
+            print(" **Success!** ")
+            return pagesToVisit
+    except:
+        print(" **Failed!** ", sys.exc_info())
+    # if foundWord:
+    #     print("The word", word, "was found at", url)
+    # else:
+    #     print("Word never found")
+
+def enqueueUrls(future_work, prev_deepness, term):
+	with xmlrpc.client.ServerProxy("http://localhost:3000/SOII") as proxy:
+		for url in future_work:
+			if (int(prev_deepness) - 1) >= 0:
+				proxy.putWork(url, int(prev_deepness) - 1, term)
 
 def main():
 	with xmlrpc.client.ServerProxy("http://localhost:3000/SOII") as proxy:
 		work = proxy.getWork()
-		# print(work)
-		if(work == "Queue Empty!"):
-			print("Queue Empty!")
-		else:
-			spider(work['url'], work['term'], int(work['deepness']))
+		while True:
+			# print(work)
+			if(work == "Queue Empty!"):
+				print("Queue Empty!")
+			else:
+				future_work = spider(work['url'], work['term'], int(work['deepness']))
+				new_thread = threading.Thread(name='enqueueing', target=enqueueUrls, kwargs={'future_work': future_work, 'prev_deepness': work['deepness'], 'term': work['term']})
+				new_thread.setDaemon(True)
+				new_thread.start()
+			work = proxy.getWork()
 
 if __name__ == "__main__":
 	main()
