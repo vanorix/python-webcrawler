@@ -2,11 +2,11 @@ from html.parser import HTMLParser
 from urllib.request import urlopen  
 from urllib import parse
 import xmlrpc.client
+import sys
 
 # We are going to create a class called LinkParser that inherits some
 # methods from HTMLParser which is why it is passed into the definition
 class LinkParser(HTMLParser):
-
     # This is a function that HTMLParser normally has
     # but we are adding some functionality to it
     def handle_starttag(self, tag, attrs):
@@ -24,6 +24,7 @@ class LinkParser(HTMLParser):
                     # an absolute URL like:
                     # www.netinstructions.com/somepage.html
                     newUrl = parse.urljoin(self.baseUrl, value)
+                    # print(newUrl)
                     # And add it to our colection of links:
                     self.links = self.links + [newUrl]
 
@@ -39,14 +40,18 @@ class LinkParser(HTMLParser):
         # Make sure that we are looking at HTML and not other things that
         # are floating around on the internet (such as
         # JavaScript files, CSS, or .PDFs for example)
-        # print(response.getheader('Content-Type'))
-        if response.getheader('Content-Type') == 'text/html; charset=UTF-8':
-            htmlBytes = response.read()
+        print(response)
+        print(response.getheader('Content-Type'))
+        if response.getheader('Content-Type') == 'text/html; charset=UTF-8' or response.getheader('Content-Type') == 'text/html':
             # Note that feed() handles Strings well, but not bytes
             # (A change from Python 2.x to Python 3.x)
+            htmlBytes = response.read()
+            print(response.getheaders())
             htmlString = htmlBytes.decode("utf-8")
             # print(htmlString)
+            # print(htmlString)
             self.feed(htmlString)
+            print(self.links)
             return htmlString, self.links
         else:
             return "",[]
@@ -63,7 +68,7 @@ def spider(url, word, maxPages):
     # (this is useful for searching for the word)
     # and we return a set of links from that web page
     # (this is useful for where to go next)
-    while numberVisited < maxPages and pagesToVisit != [] and not foundWord:
+    while numberVisited < maxPages and pagesToVisit != []:
         numberVisited = numberVisited + 1
         # Start from the beginning of our collection of pages to visit:
         url = pagesToVisit[0]
@@ -77,9 +82,9 @@ def spider(url, word, maxPages):
                 # Add the pages that we visited to the end of our collection
                 # of pages to visit:
                 pagesToVisit = pagesToVisit + links
-                print(" **Success!**")
+                print(" **Success!** ")
         except:
-            print(" **Failed!**")
+            print(" **Failed!** ", sys.exc_info())
     if foundWord:
         print("The word", word, "was found at", url)
     else:
@@ -88,6 +93,7 @@ def spider(url, word, maxPages):
 def main():
 	with xmlrpc.client.ServerProxy("http://localhost:3000/SOII") as proxy:
 		work = proxy.getWork()
+		# print(work)
 		if(work == "Queue Empty!"):
 			print("Queue Empty!")
 		else:
